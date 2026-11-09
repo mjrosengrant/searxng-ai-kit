@@ -1,5 +1,6 @@
 import json
 import unittest
+from datetime import datetime, timezone
 
 from searxng_cli import make_json_safe, json_serial
 
@@ -34,6 +35,38 @@ class ResultLike:
 
 
 class JsonSerialTests(unittest.TestCase):
+    def test_make_json_safe_preserves_paper_publication_metadata(self):
+        from searx.result_types import Paper
+
+        published = datetime(2026, 11, 9, 12, 34, 56, tzinfo=timezone.utc)
+        paper = Paper(
+            title="Research paper",
+            url="https://example.org/paper?signature=AbC%2F123",
+            publishedDate=published,
+        )
+
+        safe_value = make_json_safe(paper)
+
+        self.assertEqual(safe_value["publishedDate"], published.isoformat())
+        self.assertEqual(
+            safe_value["date_of_publication"],
+            {"datetime": published.isoformat()},
+        )
+        self.assertEqual(json.loads(json.dumps(safe_value))["url"], paper.url)
+
+    def test_json_serial_converts_nested_date_time_structures(self):
+        from searx.weather import DateTime
+
+        published = datetime(2026, 11, 9, 12, 34, 56, tzinfo=timezone.utc)
+        payload = {"metadata": {"published": DateTime(published)}}
+
+        encoded = json.dumps(payload, default=json_serial)
+
+        self.assertEqual(
+            json.loads(encoded),
+            {"metadata": {"published": {"datetime": published.isoformat()}}},
+        )
+
     def test_serializes_searxng_result_objects_with_as_dict(self):
         payload = {"answers": [AnswerLike()]}
 

@@ -21,6 +21,7 @@ import subprocess
 import platform
 
 import httpx
+import msgspec
 import typer
 from fastapi import Request
 from rich.console import Console
@@ -2061,6 +2062,9 @@ def make_json_safe(value: Any) -> Any:
     as_dict = getattr(value, "as_dict", None)
     if callable(as_dict):
         return make_json_safe(as_dict())
+
+    if isinstance(value, msgspec.Struct):
+        return make_json_safe(msgspec.structs.asdict(value))
 
     if isinstance(value, set):
         items = [make_json_safe(item) for item in value]

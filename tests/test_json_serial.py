@@ -1,7 +1,12 @@
 import json
 import unittest
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, patch
 
+from rich.console import Console
+from typer.testing import CliRunner
+
+import searxng_cli
 from searxng_cli import make_json_safe, json_serial
 
 
@@ -119,6 +124,42 @@ class JsonSerialTests(unittest.TestCase):
                 ]
             },
         )
+
+
+class CliJsonOutputTests(unittest.TestCase):
+    def test_fetch_json_preserves_long_urls_and_content(self):
+        first_url = "https://example.org/Paper?signature=" + "AbC%2FDeF%2BGHi%3D" * 20
+        second_url = "https://example.org/Other?token=" + "XyZ%2b123" * 20
+        for urls in ([first_url], [first_url, second_url]):
+            with self.subTest(url_count=len(urls)):
+                payload = [
+                    {"success": True, "url": url, "title": "研究 paper",
+                     "content": "Long source text with [brackets]. " * 30}
+                    for url in urls
+                ]
+                with (
+                    patch.object(searxng_cli, "fetch_url_content", AsyncMock(return_value=payload[0])),
+                    patch.object(searxng_cli, "fetch_multiple_urls_async", AsyncMock(return_value=payload)),
+                    patch.object(searxng_cli, "console", Console(width=40, color_system=None)),
+                ):
+                    result = CliRunner().invoke(
+                        searxng_cli.app, ["fetch-urls", *urls, "--format", "json"],
+                    )
+
+                self.assertEqual(result.exit_code, 0, result.output)
+                self.assertEqual(json.loads(result.stdout), payload)
+
+    def test_fetch_human_output_remains_available(self):
+        payload = {"success": True, "url": "https://example.org/paper",
+                   "title": "Research paper", "content": "Source text"}
+        with patch.object(searxng_cli, "fetch_url_content", AsyncMock(return_value=payload)):
+            result = CliRunner().invoke(
+                searxng_cli.app, ["fetch-urls", payload["url"], "--format", "human"],
+            )
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn(payload["title"], result.stdout)
+        self.assertIn(payload["content"], result.stdout)
 
 
 if __name__ == "__main__":

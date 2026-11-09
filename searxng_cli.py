@@ -2733,7 +2733,7 @@ def fetch_urls_command(
             output = json.dumps(
                 results, indent=2, ensure_ascii=False, default=json_serial
             )
-            console.print(output)
+            print(output)
         else:
             # Human-readable output
             for i, result in enumerate(results):
